@@ -1,0 +1,37 @@
+
+# Build directories
+build/
+build_elbrus/
+build_x86/
+cmake-build-*/
+
+# Compiled files
+*.o
+*.a
+*.so
+*.exe
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+test_*.txt
+test_*.bin
+test_decrypted.txt
+test_stego.bin
+
+# Benchmark results
+benchmark*.txt
+optimization_report.txt
+
+# Temporary files
+*.tmp
+*.log
