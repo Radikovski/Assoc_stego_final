@@ -1,6 +1,27 @@
 ﻿cmake_minimum_required(VERSION 3.10)
 project(AssocStego C)
-find_package(ZLIB REQUIRED)
+find_package(ZLIB QUIET)
+# Если ZLIB не найден ( Windows)
+if(NOT ZLIB_FOUND)
+    message(STATUS "ZLIB не найден в системе. Скачиваем с GitHub...")
+    include(FetchContent)
+    FetchContent_Declare(
+        zlib_local
+        GIT_REPOSITORY https://github.com/madler/zlib.git
+        GIT_TAG        v1.3.1
+    )
+    
+    # Отключаем сборку лишнего мусора (тестов и динамических библиотек)
+    set(SKIP_INSTALL_ALL ON CACHE BOOL "Skip Zlib install" FORCE)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static Zlib" FORCE)
+    
+    FetchContent_MakeAvailable(zlib_local)
+    
+    # Создаем псевдоним, чтобы остальной наш код работал без изменений
+    add_library(ZLIB::ZLIB ALIAS zlibstatic)
+endif()
+
+find_package(OpenMP)
 find_package(OpenMP)
 
 # ========== ОПТИМИЗАЦИИ КОМПИЛЯТОРА ==========

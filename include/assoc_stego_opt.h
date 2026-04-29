@@ -8,10 +8,10 @@
 #include <immintrin.h>
 
 // Векторные операции (SSE для x86-64, __v2di для Elbrus)
-void bitvector_xor_sse(uint64_t* result, const uint64_t* a,
+void bitvector_xor_avx2(uint64_t* result, const uint64_t* a,
                        const uint64_t* b, size_t word_count);
 
-void bitvector_and_sse(uint64_t* result, const uint64_t* a,
+void bitvector_and_avx2(uint64_t* result, const uint64_t* a,
                        const uint64_t* b, size_t word_count);
 
 #else

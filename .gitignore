@@ -35,3 +35,6 @@ optimization_report.txt
 # Temporary files
 *.tmp
 *.log
+
+# Êýø Visual Studio
+.vs/
