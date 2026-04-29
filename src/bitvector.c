@@ -13,14 +13,30 @@ void bitvector_rng_seed(uint64_t seed) {
 }
 
 void bitvector_rng_fill(uint8_t* buffer, size_t length) {
-    for (size_t i = 0; i < length; i++) {
+    uint64_t* buf64 = (uint64_t*)buffer;
+    size_t words = length / 8;
+    
+    // Генерируем сразу блоками по 64 бита
+    #pragma unroll(4)
+    for (size_t i = 0; i < words; i++) {
         g_rng_state ^= g_rng_state >> 12;
         g_rng_state ^= g_rng_state << 25;
         g_rng_state ^= g_rng_state >> 27;
-        buffer[i] = (uint8_t)((g_rng_state * 0x2545F4914F6CDD1DULL) >> 32);
+        buf64[i] = g_rng_state * 0x2545F4914F6CDD1DULL;
+    }
+    
+    // Обрабатываем остаток (если length не кратно 8)
+    size_t tail = length % 8;
+    if (tail > 0) {
+        g_rng_state ^= g_rng_state >> 12;
+        g_rng_state ^= g_rng_state << 25;
+        g_rng_state ^= g_rng_state >> 27;
+        uint64_t last_val = g_rng_state * 0x2545F4914F6CDD1DULL;
+        for (size_t i = 0; i < tail; i++) {
+            buffer[words * 8 + i] = (uint8_t)(last_val >> (i * 8));
+        }
     }
 }
-
 // ========== ������� ������� ==========
 static inline size_t calc_word_count(size_t bits) { return (bits + 63) / 64; }
 
@@ -33,11 +49,36 @@ BitVector* bitvector_create(size_t bit_length) {
     if (bit_length == 0) return NULL;
     BitVector* bv = (BitVector*)malloc(sizeof(BitVector));
     if (!bv) return NULL;
+    
     bv->bit_length = bit_length;
     bv->word_count = calc_word_count(bit_length);
-    bv->data = (uint64_t*)calloc(bv->word_count, sizeof(uint64_t));
+    
+    // Выравнивание по границе 32 байт для безопасной работы AVX2 и Эльбрус
+    bv->data = NULL;
+#if defined(_WIN32)
+    bv->data = (uint64_t*)_aligned_malloc(bv->word_count * sizeof(uint64_t), 32);
+#else
+    if (posix_memalign((void**)&bv->data, 32, bv->word_count * sizeof(uint64_t)) != 0) {
+        bv->data = NULL;
+    }
+#endif
+
     if (!bv->data) { free(bv); return NULL; }
+    memset(bv->data, 0, bv->word_count * sizeof(uint64_t));
     return bv;
+}
+
+void bitvector_free(BitVector* bv) {
+    if (bv) { 
+        if (bv->data) {
+#if defined(_WIN32)
+            _aligned_free(bv->data);
+#else
+            free(bv->data);
+#endif
+        }
+        free(bv); 
+    }
 }
 
 BitVector* bitvector_from_string(const char* binary_str) {
@@ -74,9 +115,6 @@ BitVector* bitvector_from_bytes(const uint8_t* bytes, size_t byte_len, size_t bi
     return bv;
 }
 
-void bitvector_free(BitVector* bv) {
-    if (bv) { if (bv->data) free(bv->data); free(bv); }
-}
 
 bool bitvector_get_bit(const BitVector* bv, size_t index) {
     if (!bv || index >= bv->bit_length) return false;

@@ -53,16 +53,13 @@ int main(void) {
     benchmark_init();
     profiler_init();
     // Показываем информацию о потоках
-    #ifndef __ELBRUS__
+    
     #ifdef _OPENMP
     printf("| Threads: %d (max: %d)                              |\n", 
            omp_get_num_threads(), omp_get_max_threads());
     #else
     printf("| Threads: 1 (OpenMP not available)                    |\n");
     #endif
-#else
-    printf("| Threads: 1 (Elbrus VLIW mode)                        |\n");
-#endif
     // 
     // Информация о системе
     // 
@@ -165,8 +162,8 @@ int main(void) {
     // 
     printf("\n[ENCRYPT] test_plain.txt -> test_stego.bin\n");
     uint64_t enc_start = benchmark_get_time_us();
-    int enc_res = assoc_stego_encrypt_file(as, "test_plain.txt", "test_stego.bin");//Однопоточное шифрование 
-    //int enc_res = assoc_stego_encrypt_file_mt(as, "test_plain.txt", "test_stego.bin", 0);//Многопоточное шифрование 
+    //int enc_res = assoc_stego_encrypt_file(as, "test_plain.txt", "test_stego.bin");//Однопоточное шифрование 
+    int enc_res = assoc_stego_encrypt_file_mt(as, "test_plain.txt", "test_stego.bin", 0);//Многопоточное шифрование 
     uint64_t enc_end = benchmark_get_time_us();
     double enc_time = (enc_end - enc_start) / 1000.0;
 
@@ -196,7 +193,20 @@ int main(void) {
     // 
     printf("\n[DECRYPT] test_stego.bin -> test_decrypted.txt\n");
     uint64_t dec_start = benchmark_get_time_us();
-    int dec_res = assoc_stego_decrypt_file(as, "test_stego.bin", "test_decrypted.txt");
+    int use_parallel = 1;  // 1 = РїР°СЂР°Р»Р»РµР»СЊРЅРѕ, 0 = РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕ
+    int num_threads = omp_get_max_threads();
+    int dec_res;
+    if (use_parallel) {
+        printf("DEBUG: Using parallel decryption with %d threads\n", num_threads);
+        dec_res = assoc_stego_decrypt_file_mt(as, "test_stego.bin", "test_decrypted.txt", 0);
+        if (dec_res != 0) {
+            printf("[ERROR] Decryption failed (code %d)\n",dec_res);
+            return 1;
+        }
+    }
+    else {
+	dec_res = assoc_stego_decrypt_file(as, "test_stego.bin", "test_decrypted.txt");
+    }
     uint64_t dec_end = benchmark_get_time_us();
     double dec_time = (dec_end - dec_start) / 1000.0;
 

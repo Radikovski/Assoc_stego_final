@@ -6,6 +6,7 @@
 #include <string.h>
 #include <time.h>
 #include "vector_ops.h"
+#define MAX_WORDS 16
 
 #ifdef _WIN32
 #include <windows.h>
@@ -387,10 +388,16 @@ int assoc_stego_disclose_etalon_optimized(const AssocStego* as, const uint64_t* 
     }
 
     size_t word_count = as->etalons[0]->word_count;
-    uint64_t* cm = (uint64_t*)calloc(word_count, sizeof(uint64_t));
-    if (!cm) { PROFILE_END("assoc_stego_disclose_etalon_optimized"); return -1; }
+    int found_idx = -1;
 
-    // Проверяем эталоны (AVX2 + ранний выход при несовпадении)
+    // === ИСПОЛЬЗУЕМ СТЕК ВМЕСТО posix_memalign ===
+#if defined(__GNUC__) || defined(__ELBRUS__) || defined(__clang__)
+    uint64_t cm[MAX_WORDS] __attribute__((aligned(32))) = {0};
+#else
+    __declspec(align(32)) uint64_t cm[MAX_WORDS] = {0};
+#endif
+
+    // Проверяем эталоны
     for (size_t i = 0; i < as->etalon_count; i++) {
 #if defined(_M_X64) || defined(__x86_64__)
         bitvector_and_avx2(cm, container_data, as->key[i]->data, word_count);
@@ -398,68 +405,57 @@ int assoc_stego_disclose_etalon_optimized(const AssocStego* as, const uint64_t* 
         vector_and(container_data, as->key[i]->data, cm, word_count);
 #endif
 
-        // ← Ранний выход при первом несовпадении
-        bool match = true;
+        uint64_t diff = 0;
+        
+        // Безветвленная проверка (предикаты для VLIW)
+        #pragma unroll(4)
         for (size_t j = 0; j < word_count; j++) {
-            if (cm[j] != as->cache[i].etalon_masked[j]) {
-                match = false;
-                break;  // ← Не проверяем остальные слова!
-            }
+            diff |= (cm[j] ^ as->cache[i].etalon_masked[j]);
         }
 
-        if (match) {
-            free(cm);
-            PROFILE_END("assoc_stego_disclose_etalon_optimized");
-            return (int)i;
+        if (diff == 0) {
+            found_idx = (int)i;
+            break;
         }
     }
 
-    free(cm);
     PROFILE_END("assoc_stego_disclose_etalon_optimized");
-    return -1;
+    return found_idx;
 }
-
-// ========== БЫСТРАЯ ВЕРСИЯ БЕЗ MALLOC ==========
-
+// ========== БЫСТРАЯ ВЕРСИЯ БЕЗ КУЧИ (МАССИВ В СТЕКЕ , БУФЕРЫ В СТЕКЕ) ==========
 int assoc_stego_hide_byte_fast(const AssocStego* as, uint8_t val, uint8_t* out_buffer, size_t* out_len) {
+    if (!as || !as->key_generated || !out_buffer || !out_len) return -1;
     PROFILE_START("assoc_stego_hide_byte_fast");
-
-    if (!as || !as->key_generated || !out_buffer || !out_len) {
-        PROFILE_END("assoc_stego_hide_byte_fast");
-        return -1;
-    }
 
     int d[] = { val / 100, (val % 100) / 10, val % 10 };
     size_t container_byte_len = (as->etalon_length + 7) / 8;
+    size_t word_count = as->etalons[0]->word_count;
     size_t pos = 0;
 
-    for (int i = 0; i < 3; i++) {
-        // ← Используем пул вместо malloc
-        uint8_t* container_buf = pool_acquire(as->container_pool);
+    // Выделяем контейнер прямо на стеке потока (никаких пулов и блокировок!)
+    uint8_t container_buf[32] = {0}; // 32 байта хватит для эталона до 256 бит
 
-        // Генерируем случайный контейнер напрямую в буфер
+    for (int i = 0; i < 3; i++) {
         bitvector_rng_fill(container_buf, container_byte_len);
 
-        // XOR с эталоном
-        uint64_t* xe = (uint64_t*)calloc(as->etalons[d[i]]->word_count, sizeof(uint64_t));
-        uint64_t* m = (uint64_t*)calloc(as->etalons[d[i]]->word_count, sizeof(uint64_t));
+#if defined(__GNUC__) || defined(__ELBRUS__) || defined(__clang__)
+        uint64_t xe[MAX_WORDS] __attribute__((aligned(32))) = {0};
+        uint64_t m[MAX_WORDS] __attribute__((aligned(32))) = {0};
+#else
+        __declspec(align(32)) uint64_t xe[MAX_WORDS] = {0};
+        __declspec(align(32)) uint64_t m[MAX_WORDS] = {0};
+#endif
 
-        vector_xor((uint64_t*)container_buf, as->etalons[d[i]]->data, xe, as->etalons[d[i]]->word_count);
-        vector_and(xe, as->key[d[i]]->data, m, as->etalons[d[i]]->word_count);
-        vector_xor((uint64_t*)container_buf, m, (uint64_t*)container_buf, as->etalons[d[i]]->word_count);
+        vector_xor((uint64_t*)container_buf, as->etalons[d[i]]->data, xe, word_count);
+        vector_and(xe, as->key[d[i]]->data, m, word_count);
+        vector_xor((uint64_t*)container_buf, m, (uint64_t*)container_buf, word_count);
 
-        free(xe); free(m);
-
-        // Копируем в выходной буфер
         memcpy(out_buffer + pos, container_buf, container_byte_len);
         pos += container_byte_len;
-
-        // ← Возвращаем буфер в пул
-        pool_release(as->container_pool, container_buf);
     }
 
-    *out_len = pos;
-    PROFILE_END("assoc_stego_hide_byte_fast");
+    *out_len = pos;   
+     PROFILE_END("assoc_stego_hide_byte_fast");
     return 0;
 }
 

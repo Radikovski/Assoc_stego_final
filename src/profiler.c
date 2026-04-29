@@ -62,32 +62,39 @@ void profiler_end(const char* name) {
         if (strcmp(g_profiler.entries[i].name, name) == 0) {
             if (g_profiler.entries[i].is_active) {
                 uint64_t elapsed = now - g_profiler.entries[i].start_us;
-                // ← Проверка на переполнение
-                if (elapsed < 1000000) {  // Игнорировать > 1 секунды (ошибка)
-                    g_profiler.entries[i].total_us += elapsed;
+                
+                if (elapsed < 1000000) {  
+                    // Защищаем запись метрик при работе OpenMP
+#ifdef _OPENMP
+                    #pragma omp critical
+#endif
+                    {
+                        g_profiler.entries[i].total_us += elapsed;
+                        g_profiler.entries[i].call_count += 1; // Чиним счетчик вызовов
+                        if (elapsed > g_profiler.entries[i].max_us)
+                            g_profiler.entries[i].max_us = elapsed;
+                        if (elapsed < g_profiler.entries[i].min_us)
+                            g_profiler.entries[i].min_us = elapsed;
+                    }
                 }
-                if (elapsed > 0 && elapsed < 1000000 && elapsed > g_profiler.entries[i].max_us)
-                    g_profiler.entries[i].max_us = elapsed;
-                if (elapsed > 0 && elapsed < 1000000 && elapsed < g_profiler.entries[i].min_us)
-                    g_profiler.entries[i].min_us = elapsed;
                 g_profiler.entries[i].is_active = 0;
             }
             return;
         }
     }
 }
-
 void profiler_print_results(void) {
     if (!g_profiler.enabled) return;
     
     printf("\n");
-    printf("============================================================\n");
-    printf("|              PROFILER RESULTS                            |\n");
-    printf("============================================================\n");
-    printf("| %-35s | %-12s | %-10s | %-12s |\n", "Function", "Total ms", "Calls", "Avg us");
-    printf("------------------------------------------------------------\n");
+    printf("============================================================================================\n");
+    printf("|                                     PROFILER RESULTS                                     |\n");
+    printf("============================================================================================\n");
     
-    // Сортировка по времени
+    printf("| %-38s | %-19s | %-10s | %-12s |\n", "Function", "Total ms", "Calls", "Avg us");
+    printf("--------------------------------------------------------------------------------------------\n");
+    
+   
     for (int i = 0; i < g_profiler.entry_count - 1; i++) {
         for (int j = 0; j < g_profiler.entry_count - i - 1; j++) {
             if (g_profiler.entries[j].total_us < g_profiler.entries[j+1].total_us) {
@@ -110,7 +117,8 @@ void profiler_print_results(void) {
         double percent = (total_time > 0) ? (100.0 * e->total_us / total_time) : 0;
         double avg_us = (e->call_count > 0) ? ((double)e->total_us / e->call_count) : 0;
         
-        printf("| %-35s | %10.3f (%5.1f%%) | %10lu | %12.2f |\n", 
+        
+        printf("| %-38s | %10.3f (%5.1f%%) | %10lu | %12.2f |\n", 
                e->name, 
                e->total_us / 1000.0, 
                percent,
@@ -118,7 +126,10 @@ void profiler_print_results(void) {
                avg_us);
     }
     
-    printf("------------------------------------------------------------\n");
-    printf("| Total time: %.3f ms                                      |\n", total_time / 1000.0);
-    printf("============================================================\n");
+    printf("--------------------------------------------------------------------------------------------\n");
+    
+    char total_str[64];
+    snprintf(total_str, sizeof(total_str), "Total time: %.3f ms", total_time / 1000.0);
+    printf("| %-88s |\n", total_str);
+    printf("============================================================================================\n");
 }

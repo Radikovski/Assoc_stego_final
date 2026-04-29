@@ -17,8 +17,7 @@ int assoc_stego_encrypt_file(const AssocStego* as, const char* input_path,
     const char* output_path);
 
 // Шифрование файла (Многопоточное)
-//int assoc_stego_encrypt_file_mt(const AssocStego *as, const char *input_path, 
-//                                const char *output_path, int num_threads);
+int assoc_stego_encrypt_file_mt(const AssocStego *as, const char *input_path,const char *output_path, int num_threads);
 // Расшифрование файла
 int assoc_stego_decrypt_file(const AssocStego* as, const char* input_path,
     const char* output_path);
