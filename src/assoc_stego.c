@@ -432,34 +432,41 @@ int assoc_stego_hide_byte_fast(const AssocStego* as, uint8_t val, uint8_t* out_b
     size_t word_count = as->etalons[0]->word_count;
     size_t pos = 0;
 
-    // Выделяем контейнер прямо на стеке потока (никаких пулов и блокировок!)
-    uint8_t container_buf[32] = {0}; // 32 байта хватит для эталона до 256 бит
-
     for (int i = 0; i < 3; i++) {
-        bitvector_rng_fill(container_buf, container_byte_len);
+        // ОПТИМИЗАЦИЯ ПАМЯТИ ---
 
+        // Выделяемвыровненные массивы для всего: и для временных данных, и для самого контейнера
 #if defined(__GNUC__) || defined(__ELBRUS__) || defined(__clang__)
+        uint64_t aligned_container[MAX_WORDS] __attribute__((aligned(32))) = {0};
         uint64_t xe[MAX_WORDS] __attribute__((aligned(32))) = {0};
         uint64_t m[MAX_WORDS] __attribute__((aligned(32))) = {0};
 #else
+        __declspec(align(32)) uint64_t aligned_container[MAX_WORDS] = {0};
         __declspec(align(32)) uint64_t xe[MAX_WORDS] = {0};
         __declspec(align(32)) uint64_t m[MAX_WORDS] = {0};
 #endif
 
-        vector_xor((uint64_t*)container_buf, as->etalons[d[i]]->data, xe, word_count);
-        vector_and(xe, as->key[d[i]]->data, m, word_count);
-        vector_xor((uint64_t*)container_buf, m, (uint64_t*)container_buf, word_count);
+        // Заполняем контейнер случайными битами (приводим к uint8_t*, так как функция ждет байты)
+        bitvector_rng_fill((uint8_t*)aligned_container, container_byte_len);
 
-        memcpy(out_buffer + pos, container_buf, container_byte_len);
+        // Векторная математика работает без приведений типов и с ровными адресами
+        vector_xor(aligned_container, as->etalons[d[i]]->data, xe, word_count);
+        vector_and(xe, as->key[d[i]]->data, m, word_count);
+        vector_xor(aligned_container, m, aligned_container, word_count);
+
+        // копируем готовый результат в итоговый невыровненный массив out_buffer
+        memcpy(out_buffer + pos, (uint8_t*)aligned_container, container_byte_len);
+        
+        
+
         pos += container_byte_len;
     }
 
-    *out_len = pos;   
-     PROFILE_END("assoc_stego_hide_byte_fast");
+    *out_len = pos;
+    PROFILE_END("assoc_stego_hide_byte_fast");
     return 0;
 }
-
-// ========== Обновляем assoc_stego_disclose_byte_fast ==========
+// ========== Обновляеный assoc_stego_disclose_byte_fast ==========
 int assoc_stego_disclose_byte_fast(const AssocStego* as, const uint8_t* hidden, size_t len, uint8_t* out_val) {
     PROFILE_START("assoc_stego_disclose_byte_fast");
 
@@ -474,9 +481,22 @@ int assoc_stego_disclose_byte_fast(const AssocStego* as, const uint8_t* hidden, 
     int d[3];
 
     for (int i = 0; i < 3; i++) {
-        const uint64_t* container_data = (uint64_t*)(hidden + i * cblen);
-        // ← Используем оптимизированную версию
-        d[i] = assoc_stego_disclose_etalon_optimized(as, container_data);
+        // ОПТИМИЗАЦИЯ ПАМЯТИ ---
+        
+        // Создаем идеально выровненный буфер на стеке (выделяем с запасом 8 слов = 64 байта, выровненные по границе 32 байт)
+	#if defined(__GNUC__) || defined(__ELBRUS__) || defined(__clang__)
+        	uint64_t aligned_container[8] __attribute__((aligned(32))) = {0};
+	#else
+        	__declspec(align(32)) uint64_t aligned_container[8] = {0};
+	#endif
+
+        //  копирование невыровненных байт в ровный массив
+        memcpy(aligned_container, hidden + i * cblen, cblen);
+
+        // Передача оптимизированной функции ровного буфера
+        d[i] = assoc_stego_disclose_etalon_optimized(as, aligned_container);
+        
+        
         if (d[i] < 0) {
             printf("DEBUG: Failed to disclose etalon for digit %d (container %d)\n", d[i], i);
             PROFILE_END("assoc_stego_disclose_byte_fast");
