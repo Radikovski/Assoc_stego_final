@@ -177,7 +177,7 @@ int assoc_stego_encrypt_file_mt(const AssocStego* as, const char* input_path, co
     PROFILE_START("assoc_stego_encrypt_file_mt");
 
     // 1. Открытие файла и чтение
-    long file_size = 0;
+    size_t file_size = 0;
     uint8_t* input_data = NULL;
 
 #ifndef _WIN32
@@ -191,9 +191,9 @@ int assoc_stego_encrypt_file_mt(const AssocStego* as, const char* input_path, co
 #else
     // Fallback для Windows
     FILE* fin = fopen(input_path, "rb");
-    fseek(fin, 0, SEEK_END);
-    file_size = ftell(fin);
-    fseek(fin, 0, SEEK_SET);
+    _fseeki64(fin, 0, SEEK_END);
+    file_size = (size_t)_ftelli64(fin);
+    _fseeki64(fin, 0, SEEK_SET);
     input_data = malloc(file_size);
     fread(input_data, 1, file_size, fin);
     fclose(fin);
@@ -273,7 +273,7 @@ int assoc_stego_encrypt_file_mt(const AssocStego* as, const char* input_path, co
 int assoc_stego_decrypt_file_mt(const AssocStego* as, const char* input_path, const char* output_path, int num_threads) {
     PROFILE_START("assoc_stego_decrypt_file_mt");
 
-    long stego_size = 0;
+    size_t stego_size = 0;
     uint8_t* stego = NULL;
 
 #ifndef _WIN32
@@ -284,9 +284,9 @@ int assoc_stego_decrypt_file_mt(const AssocStego* as, const char* input_path, co
     stego = mmap(NULL, stego_size, PROT_READ, MAP_PRIVATE, fd_in, 0);
 #else
     FILE* fin = fopen(input_path, "rb");
-    fseek(fin, 0, SEEK_END);
-    stego_size = ftell(fin);
-    fseek(fin, 0, SEEK_SET);
+    _fseeki64(fin, 0, SEEK_END);
+    stego_size = (size_t)_ftelli64(fin);
+    _fseeki64(fin, 0, SEEK_SET);
     stego = malloc(stego_size);
     fread(stego, 1, stego_size, fin);
     fclose(fin);

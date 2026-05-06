@@ -58,8 +58,40 @@ int main(void) {
     printf("| Threads: %d (max: %d)                              |\n", 
            omp_get_num_threads(), omp_get_max_threads());
     #else
-    printf("| Threads: 1 (OpenMP not available)                    |\n");
+
+    //printf("| Threads: 1 (OpenMP not available)                    |\n");
     #endif
+    //ввод данных , если не текст 
+    char input_path[256];
+    const char* default_path = "test_plain.txt";
+
+    
+    printf("file to encrypt and decrypt ( Enter for '%s'): ", default_path);
+
+    
+    if (fgets(input_path, sizeof(input_path), stdin) != NULL) {
+       
+        input_path[strcspn(input_path, "\r\n")] = 0;
+
+       
+        if (strlen(input_path) == 0) {
+            strcpy(input_path, default_path);
+        }
+    }
+    else {
+        
+        strcpy(input_path, default_path);
+    }
+
+    char stego_path[256];
+    char decrypt_path[256];
+
+    // Функция sprintf склеивает строки
+    
+    sprintf(stego_path, "%s.stego.bin", input_path);
+
+    
+    sprintf(decrypt_path, "%s.decrypted", input_path);
     // 
     // Информация о системе
     // 
@@ -121,10 +153,10 @@ int main(void) {
     printf("============================================================\n");
     printf("|              FILE ENCRYPTION TEST                        \n");
     printf("============================================================\n");
-
-    FILE* fcheck = fopen("test_plain.txt", "rb");
+    
+    FILE* fcheck = fopen(input_path, "rb");
     if (!fcheck) {
-        printf("\n[ERROR] File 'test_plain.txt' not found!\n");
+        printf("\n[ERROR] File '%s' not found!\n", input_path);
         printf("        Please create this file with your text (UTF-8 encoding).\n");
         printf("        Location: %s\n", "working directory of assoc_test.exe");
         assoc_stego_free(as);
@@ -134,17 +166,22 @@ int main(void) {
     }
 
     // Получаем размер файла
-    fseek(fcheck, 0, SEEK_END);
-    long fsize = ftell(fcheck);
-    fseek(fcheck, 0, SEEK_SET);
-    fclose(fcheck);
+    int64_t fsize = 0;
+#ifdef _WIN32
+    _fseeki64(fcheck, 0, SEEK_END);
+    fsize = _ftelli64(fcheck);
+#else
+    fseeko(fcheck, 0, SEEK_END);
+    fsize = ftello(fcheck);
+#endif
+    rewind(fcheck);
 
-    printf("\n[INPUT] File: test_plain.txt\n");
-    printf("        Size: %ld bytes\n", fsize);
+    printf("\n[INPUT] File: %s\n",input_path);
+    printf("        Size: %lld bytes\n", fsize);
 
     // Читаем содержимое для отображения (если файл небольшой)
     if (fsize < 1024) {
-        FILE* f = fopen("test_plain.txt", "rb");
+        FILE* f = fopen(input_path, "rb");
         if (f) {
             char* content = (char*)malloc(fsize + 1);
             if (content) {
@@ -160,10 +197,10 @@ int main(void) {
     // 
     // Шифрование
     // 
-    printf("\n[ENCRYPT] test_plain.txt -> test_stego.bin\n");
+    printf("\n[ENCRYPT] %s -> %s\n", input_path ,stego_path );
     uint64_t enc_start = benchmark_get_time_us();
     //int enc_res = assoc_stego_encrypt_file(as, "test_plain.txt", "test_stego.bin");//Однопоточное шифрование 
-    int enc_res = assoc_stego_encrypt_file_mt(as, "test_plain.txt", "test_stego.bin", 0);//Многопоточное шифрование 
+    int enc_res = assoc_stego_encrypt_file_mt(as, input_path, stego_path, 0);//Многопоточное шифрование 
     uint64_t enc_end = benchmark_get_time_us();
     double enc_time = (enc_end - enc_start) / 1000.0;
 
@@ -176,36 +213,41 @@ int main(void) {
     }
 
     // Получаем размер зашифрованного файла
-    FILE* f_stego = fopen("test_stego.bin", "rb");
-    long stego_size = 0;
+    FILE* f_stego = fopen(stego_path, "rb");
+    int64_t stego_size = 0;
     if (f_stego) {
-        fseek(f_stego, 0, SEEK_END);
-        stego_size = ftell(f_stego);
+#ifdef _WIN32
+        _fseeki64(f_stego, 0, SEEK_END);
+        stego_size = _ftelli64(f_stego);
+#else
+        fseeko(f_stego, 0, SEEK_END);
+        stego_size = ftello(f_stego);
+#endif
         fclose(f_stego);
     }
 
     printf("          Status: SUCCESS\n");
     printf("          Time:   %.3f ms\n", enc_time);
-    printf("          Output: %ld bytes (%.2fx expansion)\n", stego_size, (double)stego_size / fsize);
+    printf("          Output: %lld bytes (%.2fx expansion)\n", stego_size, (double)stego_size / fsize);
 
     // 
     // Расшифрование
     // 
-    printf("\n[DECRYPT] test_stego.bin -> test_decrypted.txt\n");
+    printf("\n[DECRYPT] %s -> %s\n", stego_path, decrypt_path);
     uint64_t dec_start = benchmark_get_time_us();
     int use_parallel = 1;  // 1 = РїР°СЂР°Р»Р»РµР»СЊРЅРѕ, 0 = РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕ
     int num_threads = omp_get_max_threads();
     int dec_res;
     if (use_parallel) {
         printf("DEBUG: Using parallel decryption with %d threads\n", num_threads);
-        dec_res = assoc_stego_decrypt_file_mt(as, "test_stego.bin", "test_decrypted.txt", 0);
+        dec_res = assoc_stego_decrypt_file_mt(as, stego_path, decrypt_path, 0);
         if (dec_res != 0) {
             printf("[ERROR] Decryption failed (code %d)\n",dec_res);
             return 1;
         }
     }
     else {
-	dec_res = assoc_stego_decrypt_file(as, "test_stego.bin", "test_decrypted.txt");
+	dec_res = assoc_stego_decrypt_file(as, stego_path, decrypt_path);
     }
     uint64_t dec_end = benchmark_get_time_us();
     double dec_time = (dec_end - dec_start) / 1000.0;
@@ -224,19 +266,19 @@ int main(void) {
     // 
     // Верификация файлов
     // 
-    printf("\n[VERIFY] Comparing test_plain.txt and test_decrypted.txt\n");
+    printf("\n[VERIFY] Comparing %s and %s\n",input_path,decrypt_path);
 
-    FILE* f1 = fopen("test_plain.txt", "rb");
-    FILE* f2 = fopen("test_decrypted.txt", "rb");
+    FILE* f1 = fopen(input_path, "rb");
+    FILE* f2 = fopen(decrypt_path, "rb");
 
     int verification_ok = 0;
 
     if (f1 && f2) {
-        fseek(f1, 0, SEEK_END); long s1 = ftell(f1); rewind(f1);
-        fseek(f2, 0, SEEK_END); long s2 = ftell(f2); rewind(f2);
+        fseek(f1, 0, SEEK_END); size_t s1 = ftell(f1); rewind(f1);
+        fseek(f2, 0, SEEK_END); size_t s2 = ftell(f2); rewind(f2);
 
         if (s1 != s2) {
-            printf("          Status: FAIL (Sizes differ: %ld vs %ld)\n", s1, s2);
+            printf("          Status: FAIL (Sizes differ: %lld vs %lld)\n", s1, s2);
         }
         else {
             int match = 1;
@@ -249,7 +291,7 @@ int main(void) {
             }
 
             if (match) {
-                printf("          Status: SUCCESS (All %ld bytes match)\n", s1);
+                printf("          Status: SUCCESS (All %lld bytes match)\n", s1);
                 verification_ok = 1;
             }
             else {
@@ -273,8 +315,8 @@ int main(void) {
     printf("===========================================================\n");
     printf("|              BENCHMARK RESULTS                           \n");
     printf("|==========================================================\n");
-    printf("| Input size:        %ld bytes                             \n", fsize);
-    printf("| Output size:       %ld bytes                             \n", stego_size);
+    printf("| Input size:        %lld bytes                             \n", fsize);
+    printf("| Output size:       %lld bytes                             \n", stego_size);
     printf("| Expansion ratio:   %.2fx                                 \n", (double)stego_size / fsize);
     printf("|==========================================================\n");
     printf("| Encrypt time:      %.3f ms                               \n", enc_time);
