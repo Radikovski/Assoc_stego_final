@@ -485,9 +485,9 @@ int assoc_stego_disclose_byte_fast(const AssocStego* as, const uint8_t* hidden, 
         
         // Создаем идеально выровненный буфер на стеке (выделяем с запасом 8 слов = 64 байта, выровненные по границе 32 байт)
 	#if defined(__GNUC__) || defined(__ELBRUS__) || defined(__clang__)
-        	uint64_t aligned_container[8] __attribute__((aligned(32))) = {0};
+        	uint64_t aligned_container[MAX_WORDS] __attribute__((aligned(32))) = {0};
 	#else
-        	__declspec(align(32)) uint64_t aligned_container[8] = {0};
+        	__declspec(align(32)) uint64_t aligned_container[MAX_WORDS] = {0};
 	#endif
 
         //  копирование невыровненных байт в ровный массив
