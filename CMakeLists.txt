@@ -27,7 +27,7 @@ find_package(OpenMP)
 # ========== ОПТИМИЗАЦИИ КОМПИЛЯТОРА ==========
 # ========== Оптимизации для x86-64 ==========
 if(MSVC)
-    add_compile_options(/std:c11 /O2 /Ob2 /Oi /Ot /favor:INTEL64 /arch:AVX2)
+    add_compile_options(/O2 /Ob2 /Oi /Ot /openmp /favor:INTEL64 /arch:AVX2)
     add_compile_definitions(NDEBUG)
 else()
     set(CMAKE_C_STANDARD 11)

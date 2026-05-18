@@ -52,6 +52,9 @@ int main(void) {
     setlocale(LC_ALL, "ru_RU.UTF-8");
     benchmark_init();
     profiler_init();
+
+    
+
     // Показываем информацию о потоках
     
     #ifdef _OPENMP
@@ -61,6 +64,34 @@ int main(void) {
 
     //printf("| Threads: 1 (OpenMP not available)                    |\n");
     #endif
+    char input_buffer[32];
+    int num_threads = 0;
+    printf("Enter the number of OpenMP threads (0 to use all available cores):");
+    fflush(stdout);
+
+    if (fgets(input_buffer, sizeof(input_buffer), stdin) != NULL) {
+        
+        if (sscanf(input_buffer, "%d", &num_threads) != 1) {
+            num_threads = 0; 
+        }
+    }
+
+
+#ifdef _OPENMP
+    if (num_threads > 0) {
+        omp_set_num_threads(num_threads);
+        omp_set_nested(1);
+        printf("[OpenMP] Manually set streams : %d\n", num_threads);
+    }
+    else {
+        num_threads = omp_get_max_threads();
+        printf("[OpenMP] The default number of threads is  %d\n", num_threads);
+    }
+#else
+    printf("[ATTENTION] The program has been compiled WITHOUT OpenMP support. A single thread will be used.\n");
+#endif
+
+    printf("===========================================================\n");
     //ввод данных , если не текст 
     char input_path[256];
     const char* default_path = "test_plain.txt";
@@ -200,7 +231,7 @@ int main(void) {
     printf("\n[ENCRYPT] %s -> %s\n", input_path ,stego_path );
     uint64_t enc_start = benchmark_get_time_us();
     //int enc_res = assoc_stego_encrypt_file(as, "test_plain.txt", "test_stego.bin");//Однопоточное шифрование 
-    int enc_res = assoc_stego_encrypt_file_mt(as, input_path, stego_path, 0);//Многопоточное шифрование 
+    int enc_res = assoc_stego_encrypt_file_mt(as, input_path, stego_path, num_threads);//Многопоточное шифрование 
     uint64_t enc_end = benchmark_get_time_us();
     double enc_time = (enc_end - enc_start) / 1000.0;
 
@@ -236,11 +267,11 @@ int main(void) {
     printf("\n[DECRYPT] %s -> %s\n", stego_path, decrypt_path);
     uint64_t dec_start = benchmark_get_time_us();
     int use_parallel = 1;  // 1 = РїР°СЂР°Р»Р»РµР»СЊРЅРѕ, 0 = РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕ
-    int num_threads = omp_get_max_threads();
+    
     int dec_res;
     if (use_parallel) {
         printf("DEBUG: Using parallel decryption with %d threads\n", num_threads);
-        dec_res = assoc_stego_decrypt_file_mt(as, stego_path, decrypt_path, 0);
+        dec_res = assoc_stego_decrypt_file_mt(as, stego_path, decrypt_path, num_threads);
         if (dec_res != 0) {
             printf("[ERROR] Decryption failed (code %d)\n",dec_res);
             return 1;

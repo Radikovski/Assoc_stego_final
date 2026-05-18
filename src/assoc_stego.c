@@ -182,7 +182,7 @@ static void gen_key_rec(AssocStego* as, int* indices, size_t count, bool first, 
 }
 
 int assoc_stego_create_key(AssocStego* as) {
-    PROFILE_START("assoc_stego_create_key");
+    //PROFILE_START("assoc_stego_create_key");
     if (!as) { PROFILE_END("assoc_stego_create_key"); return -1; }
     int* idx = malloc(as->etalon_count * sizeof(int));
     if (!idx) { PROFILE_END("assoc_stego_create_key"); return -1; }
@@ -201,14 +201,14 @@ int assoc_stego_create_key(AssocStego* as) {
         vector_and(as->etalons[i]->data, as->key[i]->data, as->cache[i].etalon_masked, as->etalons[i]->word_count);
     }
     as->key_generated = true;
-    PROFILE_END("assoc_stego_create_key");
+    //PROFILE_END("assoc_stego_create_key");
     return 0;
 }
 
 // ========== Загрузка ключа ==========
 #define KEY_MAGIC 0x41534B59
 int assoc_stego_load_key(AssocStego* as, const char* path) {
-    PROFILE_START("assoc_stego_load_key");
+    //PROFILE_START("assoc_stego_load_key");
     if (!as) { PROFILE_END("assoc_stego_load_key"); return -1; }
     FILE* f = fopen(path, "rb");
     if (!f) { PROFILE_END("assoc_stego_load_key"); return -1; }
@@ -236,7 +236,7 @@ int assoc_stego_load_key(AssocStego* as, const char* path) {
         if (!as->cache[i].etalon_masked) { fclose(f); PROFILE_END("assoc_stego_load_key"); return -1; }
         vector_and(as->etalons[i]->data, as->key[i]->data, as->cache[i].etalon_masked, as->etalons[i]->word_count);
     }
-    fclose(f); as->key_generated = true; PROFILE_END("assoc_stego_load_key"); return 0;
+    fclose(f); as->key_generated = true; //PROFILE_END("assoc_stego_load_key"); return 0;
 }
 
 int assoc_stego_save_key(const AssocStego* as, const char* path) {
@@ -257,7 +257,7 @@ int assoc_stego_save_key(const AssocStego* as, const char* path) {
 
 // ========== Скрытие эталона ==========
 BitVector* assoc_stego_hide_etalon(const AssocStego* as, int idx) {
-    PROFILE_START("assoc_stego_hide_etalon");
+    //PROFILE_START("assoc_stego_hide_etalon");
     if (!as || !as->key_generated || idx < 0 || (size_t)idx >= as->etalon_count) { PROFILE_END("assoc_stego_hide_etalon"); return NULL; }
 
     BitVector* c = assoc_stego_generate_container(as->etalon_length);
@@ -279,13 +279,13 @@ BitVector* assoc_stego_hide_etalon(const AssocStego* as, int idx) {
 #endif
 
     free(xe); free(m);
-    PROFILE_END("assoc_stego_hide_etalon");
+    //PROFILE_END("assoc_stego_hide_etalon");
     return c;
 }
 
 // ========== Расшифрование с кэшем ==========
 int assoc_stego_disclose_etalon_cached(const AssocStego* as, const uint64_t* container_data) {
-    PROFILE_START("assoc_stego_disclose_etalon_cached");
+    //PROFILE_START("assoc_stego_disclose_etalon_cached");
     if (!as || !as->key_generated || !container_data) { PROFILE_END("assoc_stego_disclose_etalon_cached"); return -1; }
 
     uint64_t* cm = (uint64_t*)calloc(as->etalons[0]->word_count, sizeof(uint64_t));
@@ -306,7 +306,7 @@ int assoc_stego_disclose_etalon_cached(const AssocStego* as, const uint64_t* con
     }
 
     free(cm);
-    PROFILE_END("assoc_stego_disclose_etalon_cached");
+    //PROFILE_END("assoc_stego_disclose_etalon_cached");
     return -1;
 }
 
@@ -321,7 +321,7 @@ BitVector* assoc_stego_generate_container(size_t len) {
 
 // ========== Шифрование/Расшифрование байта ==========
 int assoc_stego_hide_byte(const AssocStego* as, uint8_t val, uint8_t** out, size_t* out_len) {
-    PROFILE_START("assoc_stego_hide_byte");
+    //PROFILE_START("assoc_stego_hide_byte");
     if (!as || !out || !out_len) { PROFILE_END("assoc_stego_hide_byte"); return -1; }
     int d[] = { val / 100, (val % 100) / 10, val % 10 };
     BitVector* c[3];
@@ -340,18 +340,18 @@ int assoc_stego_hide_byte(const AssocStego* as, uint8_t val, uint8_t** out, size
     memcpy(*out + lens[0] + lens[1], bytes[2], lens[2]);
     *out_len = total;
     for (int i = 0; i < 3; i++) free(bytes[i]);
-    PROFILE_END("assoc_stego_hide_byte");
+    //PROFILE_END("assoc_stego_hide_byte");
     return 0;
 err_bytes:
     for (int i = 0; i < 3; i++) if (bytes[i]) free(bytes[i]);
 err:
     for (int i = 0; i < 3; i++) if (c[i]) bitvector_free(c[i]);
-    PROFILE_END("assoc_stego_hide_byte");
+    //PROFILE_END("assoc_stego_hide_byte");
     return -1;
 }
 
 int assoc_stego_disclose_byte(const AssocStego* as, const uint8_t* hidden, size_t len, uint8_t* out_val) {
-    PROFILE_START("assoc_stego_disclose_byte");
+    //PROFILE_START("assoc_stego_disclose_byte");
     if (!as || !hidden || !out_val) { PROFILE_END("assoc_stego_disclose_byte"); return -1; }
     size_t cblen = (as->etalon_length + 7) / 8;
     if (len != 3 * cblen) { PROFILE_END("assoc_stego_disclose_byte"); return -1; }
@@ -370,20 +370,20 @@ int assoc_stego_disclose_byte(const AssocStego* as, const uint8_t* hidden, size_
     int val = d[0] * 100 + d[1] * 10 + d[2];
     if (val > 255) { PROFILE_END("assoc_stego_disclose_byte"); return -1; }
     *out_val = (uint8_t)val;
-    PROFILE_END("assoc_stego_disclose_byte");
+    //PROFILE_END("assoc_stego_disclose_byte");
     return 0;
 err_c:
     for (int i = 0; i < 3; i++) if (c[i]) bitvector_free(c[i]);
-    PROFILE_END("assoc_stego_disclose_byte");
+    //PROFILE_END("assoc_stego_disclose_byte");
     return -1;
 }
 // ========== ОПТИМИЗИРОВАННЫЙ ПОИСК С AVX2 ==========
 // ========== ОПТИМИЗИРОВАННЫЙ ПОИСК С РАННИМ ВЫХОДОМ ==========
 int assoc_stego_disclose_etalon_optimized(const AssocStego* as, const uint64_t* container_data) {
-    PROFILE_START("assoc_stego_disclose_etalon_optimized");
+    //PROFILE_START("assoc_stego_disclose_etalon_optimized");
 
     if (!as || !as->key_generated || !container_data) {
-        PROFILE_END("assoc_stego_disclose_etalon_optimized");
+        //PROFILE_END("assoc_stego_disclose_etalon_optimized");
         return -1;
     }
 
@@ -419,13 +419,13 @@ int assoc_stego_disclose_etalon_optimized(const AssocStego* as, const uint64_t* 
         }
     }
 
-    PROFILE_END("assoc_stego_disclose_etalon_optimized");
+    //PROFILE_END("assoc_stego_disclose_etalon_optimized");
     return found_idx;
 }
 // ========== БЫСТРАЯ ВЕРСИЯ БЕЗ КУЧИ (МАССИВ В СТЕКЕ , БУФЕРЫ В СТЕКЕ) ==========
 int assoc_stego_hide_byte_fast(const AssocStego* as, uint8_t val, uint8_t* out_buffer, size_t* out_len) {
     if (!as || !as->key_generated || !out_buffer || !out_len) return -1;
-    PROFILE_START("assoc_stego_hide_byte_fast");
+    //PROFILE_START("assoc_stego_hide_byte_fast");
 
     int d[] = { val / 100, (val % 100) / 10, val % 10 };
     size_t container_byte_len = (as->etalon_length + 7) / 8;
@@ -463,15 +463,15 @@ int assoc_stego_hide_byte_fast(const AssocStego* as, uint8_t val, uint8_t* out_b
     }
 
     *out_len = pos;
-    PROFILE_END("assoc_stego_hide_byte_fast");
+    //PROFILE_END("assoc_stego_hide_byte_fast");
     return 0;
 }
 // ========== Обновляеный assoc_stego_disclose_byte_fast ==========
 int assoc_stego_disclose_byte_fast(const AssocStego* as, const uint8_t* hidden, size_t len, uint8_t* out_val) {
-    PROFILE_START("assoc_stego_disclose_byte_fast");
+    //PROFILE_START("assoc_stego_disclose_byte_fast");
 
     if (!as || !as->key_generated || !hidden || !out_val) {
-        PROFILE_END("assoc_stego_disclose_byte_fast");
+        //PROFILE_END("assoc_stego_disclose_byte_fast");
         return -1;
     }
 
@@ -508,6 +508,6 @@ int assoc_stego_disclose_byte_fast(const AssocStego* as, const uint8_t* hidden, 
     if (val > 255) { PROFILE_END("assoc_stego_disclose_byte_fast"); return -1; }
     *out_val = (uint8_t)val;
 
-    PROFILE_END("assoc_stego_disclose_byte_fast");
+    //PROFILE_END("assoc_stego_disclose_byte_fast");
     return 0;
 }

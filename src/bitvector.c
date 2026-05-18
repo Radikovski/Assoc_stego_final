@@ -132,22 +132,22 @@ void bitvector_set_bit(BitVector* bv, size_t index, bool value) {
 }
 
 BitVector* bitvector_and(const BitVector* a, const BitVector* b) {
-    PROFILE_START("bitvector_and");
+    //PROFILE_START("bitvector_and");
     if (!a || !b || a->bit_length != b->bit_length) { PROFILE_END("bitvector_and"); return NULL; }
     BitVector* res = bitvector_create(a->bit_length);
     if (!res) { PROFILE_END("bitvector_and"); return NULL; }
     vector_and(a->data, b->data, res->data, a->word_count);
-    PROFILE_END("bitvector_and");
+    //PROFILE_END("bitvector_and");
     return res;
 }
 
 BitVector* bitvector_xor(const BitVector* a, const BitVector* b) {
-    PROFILE_START("bitvector_xor");
+    //PROFILE_START("bitvector_xor");
     if (!a || !b || a->bit_length != b->bit_length) { PROFILE_END("bitvector_xor"); return NULL; }
     BitVector* res = bitvector_create(a->bit_length);
     if (!res) { PROFILE_END("bitvector_xor"); return NULL; }
     vector_xor(a->data, b->data, res->data, a->word_count);
-    PROFILE_END("bitvector_xor");
+    //PROFILE_END("bitvector_xor");
     return res;
 }
 

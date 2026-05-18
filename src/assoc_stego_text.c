@@ -238,18 +238,20 @@ int assoc_stego_encrypt_file_mt(const AssocStego* as, const char* input_path, co
     }
 
     // 5. ПАРАЛЛЕЛЬНОЕ ШИФРОВАНИЕ ДАННЫХ (Элегантный OpenMP)
+    long i;
 #ifdef _OPENMP
-    if (num_threads <= 0) num_threads = omp_get_max_threads();
+    double start_omp = omp_get_wtime();
     printf("DEBUG: Using parallel encryption with %d threads\n", num_threads);
-    #pragma omp parallel for num_threads(num_threads)
+    #pragma omp parallel for 
 #endif
-    for (long i = 0; i < (long)comp_size; i++) {
+    for ( i = 0; i < (long)comp_size; i++) {
         size_t offset = (8 + i) * block_size;
         size_t temp_len;
         // Каждое ядро пишет строго в свой участок памяти, блокировки не нужны!
         assoc_stego_hide_byte_fast(as, comp_buf[i], mapped_out + offset, &temp_len);
     }
-
+    double end_omp = omp_get_wtime();
+    printf("OpenMP time : %f sec\n", end_omp - start_omp);
     // 6. Очистка и сброс на диск
 #ifndef _WIN32
     munmap(mapped_out, output_size); // Ядро само сбросит данные на диск асинхронно
@@ -311,14 +313,21 @@ int assoc_stego_decrypt_file_mt(const AssocStego* as, const char* input_path, co
     uint8_t* comp_buf = malloc(comp_sz32);
 
     // ПАРАЛЛЕЛЬНОЕ РАСШИФРОВАНИЕ
+    long i;
+    double start_omp = 0.0;
+    double end_omp = 0.0;
+    start_omp = omp_get_wtime();
 #ifdef _OPENMP
-    if (num_threads <= 0) num_threads = omp_get_max_threads();
-    #pragma omp parallel for num_threads(num_threads)
+    
+    #pragma omp parallel for 
+    
 #endif
-    for (long i = 0; i < (long)comp_sz32; i++) {
+    for ( i = 0; i < (long)comp_sz32; i++) {
         size_t offset = (8 + i) * block_size;
         assoc_stego_disclose_byte_fast(as, stego + offset, block_size, &comp_buf[i]);
     }
+    end_omp = omp_get_wtime(); // Конец замера
+    printf("OpenMP time : %f sec\n", end_omp - start_omp);
 
     // ДЕКОМПРЕССИЯ (ZLIB)
     uLongf final_size = orig_sz32;
